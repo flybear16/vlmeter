@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vlmeter"
-version = "0.2.1"
+version = "0.2.2"
 description = "多模态大模型准确率 × 成本计量流水线：用自有数据评测视觉语言模型（场景检查/分类/VQA），输出准确率与成本对比报告"
 readme = "README.md"
 requires-python = ">=3.10"
