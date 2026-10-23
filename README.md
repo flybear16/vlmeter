@@ -8,7 +8,7 @@ python3 -m vlmeter run --models deepseek-flash,gpt-4o,qwen2.5-vl-7b --data data/
 
 **特性**
 
-- 一套数据同时评多模型：OpenAI 兼容接口（GPT-4o / DeepSeek / GLM-4V / Qwen-VL / vLLM / sglang / LM Studio）、Anthropic Claude、Google Gemini、Ollama 本地模型，加模型只需在 `config/models.yaml` 加几行配置
+- 一套数据同时评多模型：OpenAI 兼容接口（GPT-4o / DeepSeek / GLM-4V / Qwen-VL / vLLM / sglang / LM Studio）、Anthropic Claude、Google Gemini、Ollama 本地模型，加模型只需在 `vlmeter/config/models.yaml` 加几行配置
 - 三类任务：`classification`（分类/打标，选项匹配）、`checklist`（**一图多检查项**，如"有自行车吗+收银台干净吗"，单次调用返回全部判定）、`vqa`（开放问答，exact / contains / numeric / LLM 裁判四种判分）
 - 断点续跑：结果按题缓存，中断后重跑只补缺失项；失败请求自动重试
 - **成本核算**：按模型单价 + 实际 token 用量估算，报告内置"成本与性能选型权衡表"（总成本/单次成本/每千次调用成本，准确率与成本并排对比）
@@ -96,7 +96,7 @@ python3 -m vlmeter report --data data/sample.jsonl                    # 重新�
 
 ## 添加模型
 
-编辑 `config/models.yaml`，加一段即可（把 `enabled` 改为 `true`）：
+编辑 `vlmeter/config/models.yaml`，加一段即可（把 `enabled` 改为 `true`）：
 
 ```yaml
   glm-4v:
@@ -145,7 +145,7 @@ python3 -m vlmeter report --data data/my.jsonl          # 随时重新出报告
 - 错误样本：标准答案 vs 模型输出 + 模型判定依据（reason），区分"真错"和"标准歧义"
 
 **成本**（按实际用量核算，不是拍脑袋估）：
-- 在 `config/models.yaml` 给模型配 `price_input` / `price_output`（元/百万 tokens，⚠️ 示例价需按官网核对）
+- 在 `vlmeter/config/models.yaml` 给模型配 `price_input` / `price_output`（元/百万 tokens，⚠️ 示例价需按官网核对）
 - 每次调用的输入/输出 tokens 从 API 响应实时记录；checklist 一图多检查项按**一次调用**计费（自动去重）
 - 报告"成本与性能"表：本次总成本、单次调用成本、**每 1000 次调用成本**（生产量级外推）、平均延迟，与准确率并排
 - 本地模型（vLLM/Ollama）配 `price: 0`，API 成本计 0（只有 GPU 电费，不在本工具口径内）
@@ -170,7 +170,7 @@ vlmeter/                 评测包
   judge.py             LLM 裁判（VQA 语义判分 + 分类自由回答映射）
   runner.py            异步并发、重试、断点续跑
   report.py            聚合报告
-config/models.yaml     模型注册表
+vlmeter/config/models.yaml     模型注册表
 scripts/make_sample_data.py  合成示例数据
 tests/                 判分单元测试 + 适配器冒烟测试
 ```

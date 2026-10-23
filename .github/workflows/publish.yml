@@ -1,8 +1,7 @@
 name: Publish to PyPI
 
 on:
-  push:
-    tags: ["v*"]
+  workflow_dispatch: # 手动触发；本地 twine（token）为主发布通道
 
 jobs:
   publish:

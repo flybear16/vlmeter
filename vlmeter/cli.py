@@ -25,7 +25,7 @@ def _load_dotenv() -> None:
 
 
 def _common_args(p: argparse.ArgumentParser) -> None:
-    p.add_argument("--registry", type=Path, default=None, help="models.yaml 路径（默认 config/models.yaml）")
+    p.add_argument("--registry", type=Path, default=None, help="models.yaml 路径（默认包内 vlmeter/config/models.yaml）")
     p.add_argument("--results-dir", type=Path, default=RESULTS_DIR)
 
 

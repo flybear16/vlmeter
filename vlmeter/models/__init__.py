@@ -1,4 +1,4 @@
-"""Model registry: load config/models.yaml and build adapter instances."""
+"""Model registry: load the packaged config/models.yaml and build adapter instances."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -30,7 +30,9 @@ def _build_providers() -> None:
 def load_registry(path: str | Path | None = None) -> dict[str, ModelConfig]:
     _build_providers()
     if path is None:
-        path = Path(__file__).resolve().parents[2] / "config" / "models.yaml"
+        # Packaged default registry — works both in the source tree and after
+        # `pip install` (site-packages); override with --registry for your own.
+        path = Path(__file__).resolve().parents[1] / "config" / "models.yaml"
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f"model registry not found: {path}")
