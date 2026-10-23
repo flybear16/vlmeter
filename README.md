@@ -12,7 +12,7 @@ python3 -m vlmeter run --models deepseek-flash,gpt-4o,qwen2.5-vl-7b --data data/
 - 三类任务：`classification`（分类/打标，选项匹配）、`checklist`（**一图多检查项**，如"有自行车吗+收银台干净吗"，单次调用返回全部判定）、`vqa`（开放问答，exact / contains / numeric / LLM 裁判四种判分）
 - 断点续跑：结果按题缓存，中断后重跑只补缺失项；失败请求自动重试
 - **成本核算**：按模型单价 + 实际 token 用量估算，报告内置"成本与性能选型权衡表"（总成本/单次成本/每千次调用成本，准确率与成本并排对比）
-- 报告：总准确率、分任务、**分检查项**、分类目、平均延迟、错误样本明细（Markdown），可直接对比
+- 报告：总准确率、分任务、**分检查项**、分类目、平均延迟、错误样本明细，同时产出 Markdown + 自包含 HTML 两种报告
 
 ## 安装
 
@@ -31,7 +31,7 @@ python3 -m vlmeter run --models deepseek-flash --data data/sample.jsonl --judge 
 python3 -m vlmeter report --data data/sample.jsonl                    # 重新出报告
 ```
 
-报告输出到 `results/report_*.md`，原始逐题结果在 `results/<模型名>/*.jsonl`。
+报告同时输出 Markdown（`results/report_*.md`）和自包含 HTML（`results/report_*.html`，单文件无外部依赖，可直接发给别人双击打开），原始逐题结果在 `results/<模型名>/*.jsonl`。
 
 ## 接入你自己的数据
 

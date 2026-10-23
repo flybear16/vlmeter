@@ -119,6 +119,7 @@ def main(argv: list[str] | None = None) -> None:
 
     from .dataset import load_dataset
     from .report import console_summary, generate_report, report_path
+    from .report_html import generate_html_report, html_report_path
 
     registry = load_registry(args.registry)
     dataset = load_dataset(args.data)
@@ -128,7 +129,13 @@ def main(argv: list[str] | None = None) -> None:
     md = generate_report(dataset, names, args.results_dir, registry=registry)
     out = report_path(dataset, args.results_dir)
     out.write_text(md, encoding="utf-8")
+    html_out = html_report_path(dataset, args.results_dir)
+    html_out.write_text(
+        generate_html_report(dataset, names, args.results_dir, registry=registry),
+        encoding="utf-8",
+    )
     print(f"\n报告已生成: {out}")
+    print(f"HTML 报告: {html_out}")
 
 
 if __name__ == "__main__":
