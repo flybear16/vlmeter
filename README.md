@@ -1,189 +1,234 @@
-# vlmeter — 多模态大模型准确率 × 成本计量流水线
+# vlmeter — Accuracy × Cost Meter for Multimodal LLMs
 
-用自己的图片 + 标准答案，横向对比多个多模态模型（API 商用模型 + 本地开源模型）的准确率，自动出对比报告。
+English | [简体中文](README.zh-CN.md)
 
-```bash
-python3 -m vlmeter run --models deepseek-flash,gpt-4o,qwen2.5-vl-7b --data data/sample.jsonl --judge deepseek-v4-pro
-```
-
-**特性**
-
-- 一套数据同时评多模型：OpenAI 兼容接口（GPT-4o / DeepSeek / GLM-4V / Qwen-VL / vLLM / sglang / LM Studio）、Anthropic Claude、Google Gemini、Ollama 本地模型，加模型只需在 `vlmeter/config/models.yaml` 加几行配置
-- 三类任务：`classification`（分类/打标，选项匹配）、`checklist`（**一图多检查项**，如"有自行车吗+收银台干净吗"，单次调用返回全部判定）、`vqa`（开放问答，exact / contains / numeric / LLM 裁判四种判分）
-- 断点续跑：结果按题缓存，中断后重跑只补缺失项；失败请求自动重试
-- **成本核算**：按模型单价 + 实际 token 用量估算，报告内置"成本与性能选型权衡表"（总成本/单次成本/每千次调用成本，准确率与成本并排对比）
-- 报告：总准确率、分任务、**分检查项**、分类目、平均延迟、错误样本明细，同时产出 Markdown + 自包含 HTML 两种报告
-
-## 安装
+Evaluate vision-language models on **your own images and labels**, side by side — API models (GPT-4o, DeepSeek, GLM-4V, Qwen-VL, Claude, Gemini) and locally served ones (vLLM, Ollama) — and get a comparison report of **accuracy and cost** to drive model selection.
 
 ```bash
-pip install -r requirements.txt          # 本机已装可直接跳过
-cp .env.example .env                     # 填入你有的 API 密钥（run 会自动加载）
+vlmeter run --models deepseek-flash,gpt-4o,qwen2.5-vl-7b --data data/sample.jsonl --judge deepseek-v4-pro
 ```
 
-## 快速上手（10 分钟跑通）
+**Features**
+
+- One dataset, many models: OpenAI-compatible endpoints (GPT-4o / DeepSeek / GLM-4V / Qwen-VL / vLLM / sglang / LM Studio), Anthropic Claude, Google Gemini, local Ollama — adding a model is a few lines in `vlmeter/config/models.yaml`, no code changes
+- Three task types: `classification` (option matching), `checklist` (**multiple yes/no scene checks per image** — e.g. "bicycle present + checkout counter clean" — answered in a single call), `vqa` (open-ended, with exact / contains / numeric / LLM-judge scoring)
+- Resumable runs: results cached per question; reruns only fill in what's missing; failed requests retry automatically
+- **Cost accounting**: per-model token pricing × actual usage, with a built-in accuracy-vs-cost tradeoff table (total / per-call / per-1000-calls)
+- Reports in two formats: Markdown + a **self-contained HTML report** (single file, no external deps, shareable) with per-check accuracy heatmaps and expandable wrong-case details
+
+## Install
 
 ```bash
-python3 scripts/make_sample_data.py      # 生成 15 题合成示例数据（形状/颜色/计数/OCR）
-python3 -m vlmeter list-models             # 看当前可用的模型
-python3 -m vlmeter run --models mock --data data/sample.jsonl        # 离线自测，不花钱
-python3 -m vlmeter run --models deepseek-flash --data data/sample.jsonl --judge deepseek-v4-pro
-python3 -m vlmeter report --data data/sample.jsonl                    # 重新出报告
+pip install vlmeter                     # or from source: pip install -r requirements.txt
+cp .env.example .env                    # fill in the API keys you have (auto-loaded by run)
 ```
 
-报告同时输出 Markdown（`results/report_*.md`）和自包含 HTML（`results/report_*.html`，单文件无外部依赖，可直接发给别人双击打开），原始逐题结果在 `results/<模型名>/*.jsonl`。
+## Quick start (10 minutes)
 
-## 接入你自己的数据
+```bash
+python3 scripts/make_sample_data.py   # generate a 15-item synthetic sample set (shapes/colors/counting/OCR)
+vlmeter list-models                   # see registered models
+vlmeter run --models mock --data data/sample.jsonl      # offline self-test, costs nothing
+vlmeter run --models deepseek-flash --data data/sample.jsonl --judge deepseek-v4-pro
+vlmeter report --data data/sample.jsonl                # regenerate reports anytime
+```
 
-### 场景检查模式（推荐）：一张图判断多种场景
+Every run writes a Markdown report (`results/report_*.md`) and a self-contained HTML report (`results/report_*.html` — double-click to open, safe to send to anyone). Raw per-question results live in `results/<model>/*.jsonl`.
 
-典型需求：传一张图片，判断"有没有自行车"、"收银台干不干净"等多个是/否检查项。
-一行数据 = 一张图 + 该图的全部检查项，**一次模型调用**返回所有判定（省 N-1 次调用）：
+## Using your own data
+
+### Scene checks (recommended): many checks per image
+
+The typical need: give one image, answer multiple yes/no checks — "is there a bicycle?", "is the checkout counter clean?". One data row = one image + all its checks, answered in **one model call** (saves N-1 calls):
 
 ```json
 {"id": "shop001", "image": "images/shop001.jpg", "task": "checklist",
  "checks": [
-   {"name": "图中有自行车", "answer": true},
-   {"name": "收银台干净整洁", "answer": false,
-    "criteria": "台面无散落垃圾、无明显污渍、无杂物堆放，轻微灰尘不算"},
-   {"name": "店内无杂物堆放", "answer": true}
+   {"name": "bicycle present", "answer": true},
+   {"name": "checkout counter clean", "answer": false,
+    "criteria": "no litter, no visible stains, no clutter on the counter; light dust does not count"},
+   {"name": "no clutter in store", "answer": true}
  ]}
 ```
 
-- `answer` 是人工标注的真实情况（true/false）
-- `name` 用短名（作报告列名和结果 ID）；**主观/程度类检查务必加 `criteria` 判定标准**，只进提示词不进报告，用来对齐模型与标注员的标准——这是主观项准确率的最大影响因素
-- 模型对每个检查项返回 `verdict`（是/否）+ `reason`（一句话图片依据），依据存入结果并在报告错题样本中展示，便于区分"模型真错了"还是"标准有歧义"
-- 报告自动按**检查项名**分列统计准确率（如"收银台干净整洁 71%"），一眼看出哪个场景是弱项
-- 解析兼容多种变体（纯"是/否"、布尔、数组）；漏答/胡答按答错计并标注 `parse_fail`
+- `answer` is the human-labeled ground truth (true/false)
+- `name` is a short label (used as the report column and result ID); for **subjective checks always add `criteria`** — the judging standard goes into the prompt only, aligning the model with your annotators. This is the single biggest factor in subjective-check accuracy
+- The model returns `verdict` (yes/no) + `reason` (one-sentence visual evidence) per check. Reasons are stored and shown in the report's wrong-case section, so you can tell "model was wrong" from "the standard was ambiguous"
+- The report breaks accuracy down **per check name** (e.g. "checkout counter clean: 71%"), making weak scenes obvious
+- Parsing tolerates format variants (bare yes/no, booleans, arrays); unanswered or garbage answers count as wrong and are tagged `parse_fail`
 
-### 单项提问模式
+Labels work in Chinese or English — the sample data and prompts use Chinese; English content is handled equally well.
 
-每行一个独立问题，适合不同图问不同事：
+### Single-question mode
 
-准备一个 JSONL（或同列 CSV），每行一题，图片路径相对数据集文件：
+One row per question, for datasets where each image gets a different question. Prepare a JSONL (or CSV with the same columns), image paths relative to the dataset file:
 
 ```json
 {"id": "q001", "image": "images/001.jpg", "task": "classification",
- "question": "这张图里的产品是哪种型号？", "choices": ["A型", "B型", "C型"],
- "answer": "B型", "category": "型号识别"}
+ "question": "Which product model is shown?", "choices": ["A1", "B2", "C3"],
+ "answer": "B2", "category": "model-id"}
 {"id": "q002", "image": "images/002.jpg", "task": "vqa",
- "question": "图中破损位置在左上、右上、左下还是右下？", "answer": "左下",
- "match": "judge", "category": "缺陷定位"}
+ "question": "Where is the damage: top-left, top-right, bottom-left or bottom-right?",
+ "answer": "bottom-left", "match": "judge", "category": "defect-location"}
 {"id": "q003", "image": "images/003.jpg", "task": "vqa",
- "question": "图中共有几个安全隐患点？", "answer": "3", "match": "numeric", "category": "计数"}
+ "question": "How many safety hazards are visible? Answer with a number only.",
+ "answer": "3", "match": "numeric", "category": "counting"}
 ```
 
-字段说明：
+Field reference:
 
-| 字段 | 必填 | 说明 |
+| Field | Required | Notes |
 |---|---|---|
-| `image` | ✅ | 图片路径；超过 4MB 或最长边超 1568px 会自动压缩 |
-| `task` |  | `classification`（需 `choices`）/ `checklist`（需 `checks`）/ `vqa`，默认 `vqa` |
-| `question` | 分类/VQA 必填 | 提问文本 |
-| `answer` | 分类/VQA 必填 | 标准答案。分类题填选项文本或对应字母 |
-| `choices` |  | 分类题选项列表 |
-| `checks` |  | checklist 检查项列表 `[{name, answer, criteria?}]`，answer 为 true/false，criteria 为可选判定标准 |
-| `match` |  | VQA 判分策略，默认有 judge 用 judge、否则 contains |
-| `category` |  | 业务分类，报告中分目统计（checklist 用检查项 name，无需填） |
-| `tolerance` |  | numeric 允许误差，默认 0 |
+| `image` | ✅ | Path to the image; auto-compressed if > 4MB or longest side > 1568px |
+| `task` |  | `classification` (needs `choices`) / `checklist` (needs `checks`) / `vqa` (default) |
+| `question` | cls/vqa | The question text |
+| `answer` | cls/vqa | Ground truth; for classification use the option text or its letter |
+| `choices` |  | Options for classification |
+| `checks` |  | Checklist items `[{name, answer, criteria?}]`; answer is true/false |
+| `match` |  | VQA scoring strategy; default is judge-if-configured, else contains |
+| `category` |  | Business category for per-category breakdown (checklists use check names automatically) |
+| `tolerance` |  | Allowed error for numeric matching, default 0 |
 
-**VQA 判分策略怎么选**
+**Choosing a VQA scoring strategy**
 
-- `numeric`：答案是数字（计数、读数）用这个，支持中文数字（"三个"）
-- `exact`：答案唯一且无歧义（编号、是/否），忽略大小写和标点
-- `contains`：标准答案需出现在回答里（宽松，适合关键词式答案）
-- `judge`：LLM 裁判语义判分（推荐用于开放回答）。裁判只收到问题/标准答案/模型回答的**文本**，不会看图，所以任何纯文本模型都能当裁判。模型输出很长或语义开放时选这个最稳。
+- `numeric`: answers are numbers (counts, readings); Chinese numerals ("三个") supported
+- `exact`: unique unambiguous answers (IDs, yes/no), case/punctuation-insensitive
+- `contains`: gold answer must appear in the prediction (loose; good for keyword answers)
+- `judge`: LLM-judge semantic scoring (recommended for open-ended answers). The judge only sees question/gold/prediction **text** — never the image — so any text model can judge. Most robust for long or open answers.
 
-## 添加模型
+## Adding models
 
-编辑 `vlmeter/config/models.yaml`，加一段即可（把 `enabled` 改为 `true`）：
+Edit `vlmeter/config/models.yaml` and add an entry (flip `enabled` to `true`):
 
 ```yaml
   glm-4v:
     enabled: true
-    provider: openai                 # OpenAI 兼容接口都用这个 provider
+    provider: openai                 # any OpenAI-compatible endpoint
     model: glm-4v-plus
     base_url: https://open.bigmodel.cn/api/paas/v4/
-    api_key_env: ZHIPUAI_API_KEY     # 从 .env / 环境变量读
-    concurrency: 4                   # 并发请求数
+    api_key_env: ZHIPUAI_API_KEY     # read from .env / environment
+    concurrency: 4
 ```
 
-本地模型两种方式：
+Local models, two ways:
 
 ```bash
-# 方式一：vLLM（推荐，OpenAI 兼容）
+# Option 1: vLLM (recommended, OpenAI-compatible)
 vllm serve Qwen/Qwen2.5-VL-7B-Instruct --port 8000
-# 方式二：Ollama
+# Option 2: Ollama
 ollama pull llava
 ```
 
-对应 yaml 里已预置 `qwen2.5-vl-7b`（vLLM）和 `llava`（Ollama）条目，改 `enabled: true` 即可。
+Preset entries `qwen2.5-vl-7b` (vLLM) and `llava` (Ollama) are already in the yaml — just enable them.
 
-> 注意：若本机设置了 `OPENAI_BASE_URL` 代理（如本环境指向 DeepSeek），官方 OpenAI 条目必须写死 `base_url: https://api.openai.com/v1/` 并用独立密钥变量，避免把密钥发错服务端。
+> Note: if your machine sets `OPENAI_BASE_URL` to a proxy, the official-OpenAI entry must hard-code `base_url: https://api.openai.com/v1/` with its own key variable, so keys never get sent to the wrong server.
 
-## 运行与报告
-
-```bash
-python3 -m vlmeter run --models a,b,c --data data/my.jsonl \
-    --judge deepseek-v4-pro \         # 裁判模型（可选，纯文本模型即可）
-    --limit 20 \                      # 先跑前 20 题试水
-    --fresh                           # 忽略缓存全部重跑
-python3 -m vlmeter report --data data/my.jsonl          # 随时重新出报告
-```
-
-- 中断/限流失败不用怕：再执行同一条命令，只补失败和缺失的题
-- 结果文件按数据集内容指纹隔离，换数据自动开新文件，不会串
-- 推理型模型（如 DeepSeek）思考耗尽 `max_tokens` 会返回空答案，运行器会自动重试换一次采样；仍频繁出现可在该模型配置里调大 `max_tokens`
-
-## 准确率与成本怎么看
-
-两个核心指标都直接落在报告里，配合做选型决策：
-
-**准确率**（多层下钻，避免被单一数字误导）：
-- 总览表：总体 / 分类 / 检查项 / VQA 分项准确率
-- 分目表：**每个检查项一列**（如"收银台干净整洁 71%"），定位弱项场景
-- 错误样本：标准答案 vs 模型输出 + 模型判定依据（reason），区分"真错"和"标准歧义"
-
-**成本**（按实际用量核算，不是拍脑袋估）：
-- 在 `vlmeter/config/models.yaml` 给模型配 `price_input` / `price_output`（元/百万 tokens，⚠️ 示例价需按官网核对）
-- 每次调用的输入/输出 tokens 从 API 响应实时记录；checklist 一图多检查项按**一次调用**计费（自动去重）
-- 报告"成本与性能"表：本次总成本、单次调用成本、**每 1000 次调用成本**（生产量级外推）、平均延迟，与准确率并排
-- 本地模型（vLLM/Ollama）配 `price: 0`，API 成本计 0（只有 GPU 电费，不在本工具口径内）
-- judge 裁判调用费用另计（评测基础设施，不是被测模型成本）
-
-**典型权衡读法**：模型 A 准确率 98% 每千次 ¥30，模型 B 准确率 93% 每千次 ¥3——若业务允许 93%（如人工复核兜底），B 省十倍；若错误代价高（如合规检查），A 更划算。报告给了数字，决策是业务的事。
-
-**统计口径**
-
-- **准确率** = 判对的判定点 / 已判定判定点（checklist 一图展开为多个判定点；请求失败和未判定的不计入分母，别把断线当"答错"）
-- **解析失败**：模型没按选项字母格式回答且无法映射回选项，按答错计（配置 judge 后裁判会把自由表述映射回选项，大幅减少这类误伤）
-- **错误样本**：逐题列出标准答案 vs 模型输出，建议先看这个再下结论
-
-## 项目结构
-
-```
-vlmeter/                 评测包
-  models/              各家模型适配器（openai 兼容 / anthropic / gemini / ollama / mock）
-  dataset.py           数据集加载与校验
-  prompting.py         分类/VQA 提示模板
-  scoring.py           选项解析与 exact/contains/numeric 判分
-  judge.py             LLM 裁判（VQA 语义判分 + 分类自由回答映射）
-  runner.py            异步并发、重试、断点续跑
-  report.py            聚合报告
-vlmeter/config/models.yaml     模型注册表
-scripts/make_sample_data.py  合成示例数据
-tests/                 判分单元测试 + 适配器冒烟测试
-```
-
-## 测试
+## Running & reports
 
 ```bash
-python3 tests/test_scoring.py      # 判分逻辑
-python3 tests/test_adapters.py     # 适配器请求格式（本地 mock 服务，不需要密钥）
+vlmeter run --models a,b,c --data data/my.jsonl \
+    --judge deepseek-v4-pro \         # optional judge model (any text model)
+    --limit 20 \                      # pilot run on the first 20 items
+    --fresh                           # ignore cache, rerun everything
+vlmeter report --data data/my.jsonl   # regenerate reports anytime
 ```
 
-## 已知边界
+- Interrupted or rate-limited? Run the same command again — only failed/missing items are retried
+- Result files are keyed by dataset content hash; switching datasets starts fresh files automatically
+- Reasoning models (e.g. DeepSeek) can exhaust `max_tokens` on thinking and return empty output — the runner retries automatically; if it happens often, raise `max_tokens` in the model config
 
-- Ollama 适配器请求格式经过本地 mock 服务验证，但未在真实 Ollama 实例上跑过（本机无 GPU）；vLLM 路径与 DeepSeek 同走 OpenAI 兼容适配器，已真实验证
-- 裁判模型自身有判错概率；关键结论建议抽查报告中的错误样本
-- 数据集指纹基于 JSONL/CSV 文件内容，单独替换同名图片不会触发重跑（用 `--fresh` 强制）
+## Reading accuracy and cost
+
+Both key metrics land directly in the report for selection decisions:
+
+**Accuracy** (drill-down, so a single number can't mislead you):
+- Overview: overall / classification / checklist / VQA accuracy
+- Per-category table: **one column per check** (e.g. "checkout counter clean: 71%") to locate weak scenes
+- Wrong cases: gold vs prediction + the model's own `reason`, separating real errors from ambiguous standards
+
+**Cost** (measured, not guessed):
+- Set `price_input` / `price_output` (per 1M tokens) in `vlmeter/config/models.yaml` — ⚠️ bundled prices are examples, verify against provider pricing pages
+- Input/output tokens are recorded from each API response; checklist multi-check images are billed as **one call** (auto-dedup)
+- The cost table: total for this run, per-call cost, **per-1000-calls** (production extrapolation), average latency — side by side with accuracy
+- Local models (vLLM/Ollama): set price 0 — API cost 0 (GPU electricity is out of scope)
+- Judge calls are billed separately (evaluation infrastructure, not the model under test)
+
+**A typical tradeoff**: model A at 98% accuracy / ¥30 per 1000 calls vs model B at 93% / ¥3 — if 93% is acceptable (e.g. human review as a fallback), B is 10× cheaper; if errors are expensive (compliance checks), A wins. The report provides the numbers; the decision is business.
+
+**Counting rules**
+
+- **Accuracy** = correct decision points / scored decision points (a checklist image expands into multiple decision points; request failures and unscored items are excluded from the denominator)
+- **Parse failures** (model ignored the letter format and couldn't be mapped to an option) count as wrong; with a judge configured, free-form answers get mapped back to options, greatly reducing this penalty
+- **Wrong cases** list gold vs prediction per item — read these before drawing conclusions
+
+## Project layout
+
+```
+vlmeter/                 the package
+  models/              model adapters (openai-compat / anthropic / gemini / ollama / mock)
+  dataset.py           dataset loading & validation
+  prompting.py         per-task prompt templates
+  scoring.py           option parsing + exact/contains/numeric scoring
+  judge.py             LLM judge (VQA semantics + free-form classification mapping)
+  runner.py            async concurrency, retries, resume
+  report.py            Markdown report
+  report_html.py       self-contained HTML report
+vlmeter/config/models.yaml     model registry
+scripts/make_sample_data.py    synthetic sample data
+tests/                 scoring unit tests + adapter contract tests
+```
+
+## Tests
+
+```bash
+python3 tests/test_scoring.py      # scoring logic
+python3 tests/test_adapters.py     # adapter request shape (local mock server, no keys needed)
+```
+
+## Publishing a release to PyPI
+
+One-time setup:
+
+1. Register a [PyPI](https://pypi.org) account and create an API token under **Account Settings → API tokens** (account scope; switch to project scope once the name is claimed)
+2. Put the token in `~/.pypirc`:
+
+   ```ini
+   [distutils]
+   index-servers =
+       pypi
+
+   [pypi]
+   username = __token__
+   password = pypi-your-token
+   ```
+
+Each release, four steps (example: 0.2.3):
+
+```bash
+# 1. Bump the version (both places)
+sed -i 's/__version__ = "0.2.2"/__version__ = "0.2.3"/' vlmeter/__init__.py
+sed -i 's/version = "0.2.2"/version = "0.2.3"/' pyproject.toml
+
+# 2. Regression + build + check (clear dist/ first to avoid re-uploading old files)
+python3 tests/test_scoring.py && rm -rf dist && python3 -m build && python3 -m twine check dist/*
+
+# 3. Upload (~30s of PyPI index lag after upload is normal)
+python3 -m twine upload dist/*
+
+# 4. Commit, tag, push
+git add vlmeter/__init__.py pyproject.toml && git commit -m "chore: release v0.2.3" && git push
+git tag v0.2.3 && git push origin v0.2.3
+```
+
+Notes:
+
+- **A version can never be re-uploaded**: PyPI does not allow overwriting published files — any code change requires a version bump
+- If isolated builds fail (restricted networks), use `python3 -m build --no-isolation` with system setuptools
+- `.github/workflows/publish.yml` is an alternate CI channel (manual trigger) once PyPI Trusted Publishing is configured; local twine is the primary path
+- Local twine reads the token from `~/.pypirc`; nothing secret ever gets pushed to git
+
+## Known limitations
+
+- The Ollama adapter is verified against a contract mock but not a real Ollama instance (no GPU on the dev machine); the vLLM path shares the OpenAI-compat adapter already verified with DeepSeek
+- The judge itself can misjudge; for critical conclusions, spot-check the wrong cases in the report
+- The dataset fingerprint is based on the JSONL/CSV content — replacing an image file in place does not trigger a rerun (use `--fresh`)
