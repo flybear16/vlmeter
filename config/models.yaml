@@ -1,0 +1,92 @@
+# 模型注册表 —— 加模型只需要在这里加一段，无需改代码
+#
+# 字段说明:
+#   provider       openai(OpenAI 兼容接口,覆盖 GPT/DeepSeek/GLM/Qwen/vLLM) |
+#                  anthropic | gemini | ollama(本地) | mock(离线自测)
+#   model          提供商侧的模型 ID
+#   base_url       显式接口地址（openai/anthropic/gemini/ollama 可用）
+#   base_url_env   从环境变量读取接口地址（优先于 base_url）
+#   api_key_env    从环境变量读取密钥；未设置时用 api_key_default（默认 EMPTY，vLLM 等忽略密钥）
+#   concurrency    该模型并发请求数（默认 4）
+#   price_input / price_output   元/每百万 tokens，用于报告估算成本。
+#                 ⚠️ 下面填的是示例价，报告成本列以这里为准，上线前务必按各官网最新价核对！
+#                 本地模型（vLLM/Ollama）填 0 即可（只有电费）。
+#   enabled: false 的条目不会被加载，配好密钥后改为 true 即可
+#
+# 注意: 本机若已设置 OPENAI_BASE_URL（如代理），官方 OpenAI 条目必须写死
+# base_url: https://api.openai.com/v1/ 并使用独立的密钥环境变量，避免密钥发错服务端。
+
+models:
+  # ===== 当前环境开箱即用 =====
+  deepseek-flash:
+    provider: openai
+    model: deepseek-flash
+    base_url_env: OPENAI_BASE_URL
+    api_key_env: OPENAI_API_KEY
+    concurrency: 4
+    price_input: 0.5      # 示例价，元/百万输入tokens，按官网核对
+    price_output: 2.0     # 示例价，元/百万输出tokens
+
+  deepseek-v4-pro:          # 纯文本模型，仅用作 --judge 裁判
+    provider: openai
+    model: deepseek-v4-pro
+    base_url_env: OPENAI_BASE_URL
+    api_key_env: OPENAI_API_KEY
+    price_input: 2.0      # 示例价
+    price_output: 8.0     # 示例价
+
+  mock:                     # 离线自测假模型，不花一分钱
+    provider: mock
+    model: mock
+
+  # ===== API 商用模型（配好密钥后把 enabled 改为 true）=====
+  gpt-4o:
+    enabled: false
+    provider: openai
+    model: gpt-4o
+    base_url: https://api.openai.com/v1/
+    api_key_env: OPENAI_OFFICIAL_API_KEY
+    price_input: 18.0     # ≈$2.5/M 换算，示例价
+    price_output: 72.0    # ≈$10/M 换算，示例价
+
+  glm-4v:
+    enabled: false
+    provider: openai
+    model: glm-4v-plus        # 智谱开放平台模型 ID
+    base_url: https://open.bigmodel.cn/api/paas/v4/
+    api_key_env: ZHIPUAI_API_KEY
+
+  qwen-vl-max:
+    enabled: false
+    provider: openai
+    model: qwen-vl-max
+    base_url: https://dashscope.aliyuncs.com/compatible-mode/v1/
+    api_key_env: DASHSCOPE_API_KEY
+
+  claude-sonnet:
+    enabled: false
+    provider: anthropic
+    model: claude-sonnet-4-5
+    api_key_env: ANTHROPIC_API_KEY
+
+  gemini-flash:
+    enabled: false
+    provider: gemini
+    model: gemini-2.5-flash
+    api_key_env: GEMINI_API_KEY
+
+  # ===== 本地开源模型 =====
+  qwen2.5-vl-7b:             # vLLM/sglang 部署: vllm serve Qwen/Qwen2.5-VL-7B-Instruct
+    enabled: false
+    provider: openai
+    model: Qwen/Qwen2.5-VL-7B-Instruct
+    base_url: http://localhost:8000/v1
+    api_key_env: VLLM_API_KEY   # vLLM 不校验密钥，可不设
+    price_input: 0             # 本地部署：API 成本为 0
+    price_output: 0
+
+  llava:                     # Ollama 部署: ollama pull llava
+    enabled: false
+    provider: ollama
+    model: llava
+    base_url: http://localhost:11434

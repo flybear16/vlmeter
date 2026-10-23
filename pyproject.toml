@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vlmeter"
+version = "0.2.0"
+description = "多模态大模型准确率 × 成本计量流水线：用自有数据评测视觉语言模型（场景检查/分类/VQA），输出准确率与成本对比报告"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "flybear16" }]
+keywords = ["multimodal", "vision-language", "evaluation", "benchmark", "llm", "cost"]
+dependencies = [
+    "openai>=1.40",
+    "httpx>=0.27",
+    "pyyaml>=6.0",
+    "pandas>=2.0",
+    "pillow>=10.0",
+    "tqdm>=4.66",
+]
+
+[project.scripts]
+vlmeter = "vlmeter.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["vlmeter*"]
