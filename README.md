@@ -16,6 +16,15 @@ vlmeter run --models deepseek-flash,gpt-4o,qwen2.5-vl-7b --data data/sample.json
 - **Cost accounting**: per-model token pricing × actual usage, with a built-in accuracy-vs-cost tradeoff table (total / per-call / per-1000-calls)
 - Reports in two formats: Markdown + a **self-contained HTML report** (single file, no external deps, shareable) with per-check accuracy heatmaps and expandable wrong-case details
 
+## Common use cases
+
+1. **Model selection before launch** — public leaderboard scores don't predict your domain. Evaluate 200–500 real business images with labels; the accuracy-vs-cost table answers questions like "93% at ¥6/1k calls vs 98% at ¥80/1k calls" directly.
+2. **Site-inspection compliance checks (checklist's home turf)** — one store/factory photo, many yes/no checks ("bicycles inside parking lines", "checkout counter free of clutter", "fire exit unblocked"). The same prompt structure carries straight into production.
+3. **Annotation & criteria iteration** — subjective checks ("clean", "tidy") fail on ambiguous standards, not model ability. Read the model's `reason` in wrong cases; if the model "has a point", tighten the `criteria` and rerun to quantify the improvement per check.
+4. **Regression testing against silent API upgrades** — API models get upgraded without notice. Freeze your dataset (results are cached by content fingerprint) and rerun monthly or on vendor announcements; accuracy drops surface immediately.
+5. **Self-hosted vs API break-even** — add a local vLLM model (API cost = 0) to the same run; if it scores 95% vs the API's 97%, the tradeoff table tells you at what call volume giving up 2 points pays for the GPU.
+6. **Vendor acceptance testing** — a supplier claims "99% accuracy". Run your own labeled acceptance set, break it down per check/category, and challenge cases line by line from the wrong-case list.
+
 ## Install
 
 ```bash
